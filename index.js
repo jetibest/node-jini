@@ -1,32 +1,3 @@
-/*
-[tls]
-key = ssl/private/key.pem
-cert = ssl/certs/cert.pem
-
-tls = {
-  key = ssl/private/key.pem
-  cert = "ssl/certs/cert.pem"
-}
-
-[vhosts]
-{
-  host = masteryeti.com, www.masteryeti.com
-  
-  [routes]
-  {
-    path = /
-    address = :8081
-  }
-  {
-    path = /resistance/
-    address = {
-      port = 8082
-      protocol = http
-    }
-  }
-}
-*/
-
 function parse(data)
 {
 	if(typeof data === 'object')
