@@ -1,0 +1,305 @@
+[array definition 1]
+arr = (1)
+
+# {"arr": [1]}
+
+
+[array definition 2]
+arr = (1 2 3)
+
+# {"arr": [1, 2, 3]}
+
+
+[array definition 3]
+arr = 1, 2, 3
+
+# {"arr": [1, 2, 3]}
+
+
+[array definition 4]
+arr = 1 2 3
+
+# {"arr": [1, 2, 3]}
+
+
+[mixed array definitions]
+arr = 1 2 3 (4 5 6) (7, 8, 9) 10, 11, 12
+
+# {"arr": [1, 2, 3, 4, 5, 6, 7, 8, 9]}
+
+
+[shell-style arrays]
+arr=(1 2 3)
+arr+=(4 5 6)
+arr+=(7 8 9)
+
+# {"arr": [1, 2, 3, 4, 5, 6, 7, 8, 9]}
+
+
+[ini-style arrays]
+arr = 1
+arr[] = 2
+arr[] = 3
+
+# {"arr": [1, 2, 3]}
+
+
+[array indexing]
+arr = 1 2 3
+arr[2] = x
+arr[3] = y
+arr[4] = z
+
+# {"arr": [1, 2, "x", "y", "z"]}
+
+
+[string literal 1]
+str = "x y z"
+
+# {"str": "x y z"}
+
+
+[string literal 2]
+str = "x \n z"
+
+# {"str": "x \n z"}
+
+
+[string literal 3]
+str = "x y 
+  z"
+
+# {"str": "x y \n  z"}
+
+
+[string literal 4]
+str = "escaped\n\t\"\\"
+
+# {"str": "escaped\n\t\"\\"}
+
+
+[string literal in section name]
+[string literal in section name.section" with   string."]
+key = value
+
+# {"section with   string.": {"key": "value"}}
+
+
+[comments 1]
+# this comment is ignored
+
+
+[comments 2]
+; this comment is ignored
+
+
+[comments 3]
+ # this comment is ignored
+
+
+[comments 4]
+ ; this comment is ignored
+
+
+[comments 5]
+key = ";# literal special symbols in quotes"
+
+# {"key": ";# literal special symbols in quotes"}
+
+
+[comments 6]
+key = \;\#" literal special symbols escaped with a backslash"
+
+# {"key": ";# literal special symbols escaped with a backslash"}
+
+
+[booleans 1]
+bool1 = true
+bool2 = True
+bool3 = TRUE
+
+# {"bool1": true, "bool2": true, "bool3": true}
+
+
+[booleans 2]
+bool1 = on
+bool2 = On
+bool3 = ON
+
+# {"bool1": true, "bool2": true, "bool3": true}
+
+
+[booleans 3]
+bool1 = yes
+bool2 = Yes
+bool3 = YES
+
+# {"bool1": true, "bool2": true, "bool3": true}
+
+
+[booleans 4]
+bool1 = false
+bool2 = False
+bool3 = FALSE
+
+# {"bool1": false, "bool2": false, "bool3": false}
+
+
+[booleans 5]
+bool1 = off
+bool2 = Off
+bool3 = OFF
+
+# {"bool1": false, "bool2": false, "bool3": false}
+
+
+[booleans 6]
+bool1 = no
+bool2 = No
+bool3 = NO
+
+# {"bool1": false, "bool2": false, "bool3": false}
+
+
+[booleans 7]
+bool1 = none
+bool2 = None
+bool3 = NONE
+
+# {"bool1": false, "bool2": false, "bool3": false}
+
+
+[special values]
+values = null Infinity NaN
+
+# {"values": [null, Infinity, NaN]}
+
+
+[number 1]
+number = 123
+
+# {"number": 123}
+
+
+[number 2]
+number = 1.23
+
+# {"number": 1.23}
+
+
+[number 3]
+number = -1.23
+
+# {"number": -1.23}
+
+
+[nesting sections]
+[nesting sections.sub1.sub2]
+key = value
+
+# {"sub1": {"sub2": {"key": "value"}}}
+
+
+[nesting keys 1]
+key1.key2.key3 = value
+
+# {"key1": {"key2": {"key3": "value"}}}
+
+
+[nesting keys 2]
+key1 . " key2" . key3 = value
+
+# {"key1": {" key2": {"key3": "value"}}}
+
+
+[overwriting values]
+key = 1
+key = 2
+key = 3
+
+# {"key": 3}
+
+
+[merging section arrays]
+(1 2 3)
+(4 5 6)
+
+# [1, 2, 3, 4, 5, 6]
+
+
+[merging section objects]
+{ x = 1 }
+{ y = 2 }
+{ z = 3 }
+
+# {"x": 1, "y": 2, "z": 3}
+
+
+[merging mixed section]
+(1 2 3)
+{ x = 1 }
+(4 5 6)
+
+# [1, 2, 3, 4, 5, 6, x: 1]
+
+
+[object 1]
+obj = {
+  key = value
+
+  [section]
+  key = {
+    key = value
+    
+    [section]
+    key = value
+  }
+}
+
+# {"obj": {"key": "value", "section": {"key": "value", "section": {"key": "value"}}}}
+
+
+[object 2]
+key = obj-label {
+  subkey = value
+}
+
+# {"key": {"subkey": "value"}}
+
+
+[object 3]
+key = obj-label { subkey = value }
+
+# {"key": {"subkey": "value"}}
+
+
+[object 4]
+obj-label {
+  key = value
+}
+
+# {"key": "value"}
+
+
+[array of objects]
+(
+  {x=1}
+  {x=2}
+)
+
+# [{"x": 1}, {"y": 2}]
+
+
+[relative sections]
+[.section1]
+key = value
+[.section2]
+key = value
+
+# {"section1": {"key": "value", "section2": {"key": "value"}}}
+
+
+[]
+section reset = yes
+
+# {"section reset": true}

@@ -69,6 +69,11 @@ function merge(target, source)
 		{
 			return source;
 		}
+		else
+		{
+			Array.prototype.push.apply(target, source);
+			return target;
+		}
 	}
 	
 	for(const [key, val] of Object.entries(source))
@@ -80,7 +85,7 @@ function merge(target, source)
 				target[key] = new val.__proto__.constructor();
 			}
 			
-			merge(val, target[key]);
+			merge(target[key], val);
 		}
 		else
 		{
@@ -131,7 +136,7 @@ function parse(data, options)
 		
 		while(i < n)
 		{
-			const chr = data[i];
+			let chr = data[i];
 			const isEOF = i + 1 === n;
 			const isEOL = chr === '\n' || isEOF;
 			const isWhitespace = regex_whitespace.test(chr) && !isEOL; // exclude newline as whitespace
@@ -150,7 +155,7 @@ function parse(data, options)
 					buffer_is_escaped = false;
 					++i;
 				}
-				else if(chr === '{' && !buffer_is_escaped && buffer_begin_of_statement)
+				else if(chr === '{' && !buffer_is_escaped) // && buffer_begin_of_statement)
 				{
 					++i; // skip over '{', since we are already in the 'main' context)
 					
@@ -257,8 +262,30 @@ function parse(data, options)
 				// handle 'key' which is integrated in the 'main' context:
 				else if((chr === '=' || chr === '.') && !buffer_is_escaped)
 				{
+					// extract/parse array key, then trim
+					let arraykey = null;
+					let trimmed_buffer = buffer.trimRight();
+					if(chr === '=' && trimmed_buffer.endsWith('[]') && buffer_last_literal <= trimmed_buffer.length - 2)
+					{
+						arraykey = '[]';
+						buffer = trimmed_buffer.trimRight().substring(0, trimmed_buffer.length - 2);
+					}
+					else if(chr === '=' && buffer.endsWith('+') && buffer_last_literal <= buffer.length - 1)
+					{
+						arraykey = '+';
+						buffer = buffer.substring(0, buffer.length - 1);
+					}
+					else if(/\[[0-9]+\]$/g.test(trimmed_buffer) && buffer_last_literal <= trimmed_buffer.lastIndexOf('['))
+					{
+						buffer = trimmed_buffer.replace(/\[([0-9]+)\]$/g, ($0, $1) =>
+						{
+							arraykey = parseInt($1);
+							return '';
+						});
+					}
+					
 					// trim right only if last not a literal, and not empty value
-					if(!buffer_skip_whitespace)
+					if(!buffer_skip_whitespace || arraykey !== null)
 					{
 						if(buffer_last_literal === -1)
 						{
@@ -275,7 +302,7 @@ function parse(data, options)
 						context_key = [];
 					}
 					
-					context_key.push(buffer);
+					context_key.push({buffer: buffer, arraykey: arraykey});
 					++i;
 					
 					if(chr === '=')
@@ -301,10 +328,76 @@ function parse(data, options)
 						for(let i=0;i<context_key.length - 1;++i)
 						{
 							let new_key = context_key[i];
-							tmp = tmp[new_key] = tmp[new_key] || {};
+							let new_key_buffer = new_key.buffer;
+							
+							// key[] = value, pushes value to the Array at obj[key]
+							if(typeof new_key.arraykey === 'number')
+							{
+								let arr = tmp[new_key_buffer];
+								if(typeof arr === 'undefined')
+								{
+									arr = tmp[new_key_buffer] = [];
+								}
+								else if(!Array.isArray(arr))
+								{
+									arr = tmp[new_key_buffer] = [
+										tmp[new_key_buffer]
+									];
+								}
+								
+								tmp = arr[new_key.arraykey];
+							}
+							else
+							{
+								tmp = tmp[new_key_buffer] = tmp[new_key_buffer] || {};
+							}
 						}
 						
-						tmp[context_key[context_key.length - 1]] = value;
+						// apply value to the last key
+						let new_key = context_key[context_key.length - 1];
+						let new_key_buffer = new_key.buffer;
+						let new_key_arraykey = new_key.arraykey;
+						
+						if(new_key_arraykey !== null)
+						{
+							let arr = tmp[new_key_buffer];
+							if(typeof arr === 'undefined')
+							{
+								arr = tmp[new_key_buffer] = [];
+							}
+							else if(!Array.isArray(arr))
+							{
+								arr = tmp[new_key_buffer] = [
+									tmp[new_key_buffer]
+								];
+							}
+							
+							if(new_key_arraykey === '[]' || new_key_arraykey === '+')
+							{
+								if(new_key_arraykey === '+' && Array.isArray(value))
+								{
+									// += will flatten an array that is defined in the value, like in a shell:
+									// arr=(a b c)
+									// arr+=(d e f)
+									// is equal to arr=(a b c d e f)
+									
+									Array.prototype.push.apply(arr, value);
+								}
+								else
+								{
+									arr.push(value);
+								}
+							}
+							else
+							{
+								arr[new_key_arraykey] = value;
+							}
+						}
+						// else: regular set object key to value (with: key = value)
+						else
+						{
+							tmp[new_key_buffer] = value;
+						}
 						
 						context_key = null;
 					}
@@ -343,6 +436,7 @@ function parse(data, options)
 					else if(chr === '\\')
 					{
 						buffer_is_escaped = true;
+						chr = '';
 					}
 					
 					if(isWhitespace)
@@ -417,7 +511,7 @@ function parse(data, options)
 					buffer_first = false;
 					++i;
 				}
-				else if(chr === '"')
+				else if(chr === '"' && !buffer_is_escaped)
 				{
 					// only trim spaces between two literals
 					if(buffer_last_literal !== -1)
@@ -440,6 +534,7 @@ function parse(data, options)
 					else if(chr === '\\')
 					{
 						buffer_is_escaped = true;
+						chr = '';
 					}
 					
 					if(isWhitespace)
@@ -596,11 +691,13 @@ function parse(data, options)
 						}
 					}
 					
-					if(buffer === 'true' || buffer === 'on' || buffer === 'yes')
+					let buffer_ignore_case = buffer.toLowerCase();
+					
+					if(buffer_ignore_case === 'true' || buffer_ignore_case === 'on' || buffer_ignore_case === 'yes')
 					{
 						buffer = true;
 					}
-					else if(buffer === 'false' || buffer === 'off' || buffer === 'no' || buffer === 'none')
+					else if(buffer_ignore_case === 'false' || buffer_ignore_case === 'off' || buffer_ignore_case === 'no' || buffer_ignore_case === 'none')
 					{
 						buffer = false;
 					}
@@ -697,6 +794,8 @@ function parse(data, options)
 					
 					++i; // skip over start
 					
+					// TODO: don't return, but add to existing buffer if array, or initialize array on the fly.. labels are not allowed in value definitions
+					// TODO: however, then } and ) are also not the end of a value, it should be read until EOL, after the end was read...
 					return next('array', null);
 				}
 				else if(chr === '{' && !buffer_is_escaped)
@@ -705,6 +804,8 @@ function parse(data, options)
 					
 					++i; // skip over start
 					
+					// TODO: don't return, but add to existing buffer if array, or initialize array on the fly.. labels are not allowed in value definitions
+					// TODO: however, then } and ) are also not the end of a value, it should be read until EOL, after the end was read...
 					return next('main', null);
 				}
 				else if(chr === '"' && !buffer_is_escaped)
@@ -731,6 +832,7 @@ function parse(data, options)
 					else if(chr === '\\')
 					{
 						buffer_is_escaped = true;
+						chr = ''; // skip backslash-character
 					}
 					
 					if(!(isWhitespace && buffer_skip_whitespace))
