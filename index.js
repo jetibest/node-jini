@@ -127,6 +127,7 @@ function parse(data, options)
 		let buffer_first = true;
 		let buffer_begin_of_statement = true;
 		let buffer_skip_whitespace = true;
+		let buffer_parse_keyword = true; // disabled if any literal or escape-char is used, then Infinity,NaN,true,on,1, etc is not parsed
 		let buffer_last_literal = -1;
 		let buffer_is_escaped = false;
 		let buffer_implicit_delim = false;
@@ -134,12 +135,12 @@ function parse(data, options)
 		let context_section = null;
 		let context_key = null;
 		
-		while(i < n)
+		while(i <= n)
 		{
-			let chr = data[i];
-			const isEOF = i + 1 === n;
+			let chr = i < n ? data[i] : null;
+			const isEOF = chr === null;
 			const isEOL = chr === '\n' || isEOF;
-			const isWhitespace = regex_whitespace.test(chr) && !isEOL; // exclude newline as whitespace
+			const isWhitespace = !isEOL && regex_whitespace.test(chr); // exclude newline as whitespace
 			
 			// console.log(i + ': ' + ctx + ' chr = ' + JSON.stringify(chr) + '');
 			
@@ -691,37 +692,41 @@ function parse(data, options)
 						}
 					}
 					
-					let buffer_ignore_case = buffer.toLowerCase();
-					
-					if(buffer_ignore_case === 'true' || buffer_ignore_case === 'on' || buffer_ignore_case === 'yes')
+					// only parse special values if no literal was used
+					if(buffer_parse_keyword)
 					{
-						buffer = true;
-					}
-					else if(buffer_ignore_case === 'false' || buffer_ignore_case === 'off' || buffer_ignore_case === 'no' || buffer_ignore_case === 'none')
-					{
-						buffer = false;
-					}
-					else if(buffer === 'null')
-					{
-						buffer = null;
-					}
-					else if(buffer === 'Infinity')
-					{
-						buffer = Infinity;
-					}
-					else if(buffer === 'NaN')
-					{
-						buffer = NaN;
-					}
-					else
-					{
-						if(regex_number.test(buffer))
+						let buffer_ignore_case = buffer.toLowerCase();
+						
+						if(buffer_ignore_case === 'true' || buffer_ignore_case === 'on' || buffer_ignore_case === 'yes')
 						{
-							let num = parseFloat(buffer);
-							
-							if(!isNaN(num))
+							buffer = true;
+						}
+						else if(buffer_ignore_case === 'false' || buffer_ignore_case === 'off' || buffer_ignore_case === 'no' || buffer_ignore_case === 'none')
+						{
+							buffer = false;
+						}
+						else if(buffer === 'null')
+						{
+							buffer = null;
+						}
+						else if(buffer === 'Infinity')
+						{
+							buffer = Infinity;
+						}
+						else if(buffer === 'NaN')
+						{
+							buffer = NaN;
+						}
+						else
+						{
+							if(regex_number.test(buffer))
 							{
-								buffer = num;
+								let num = parseFloat(buffer);
+								
+								if(!isNaN(num))
+								{
+									buffer = num;
+								}
 							}
 						}
 					}
@@ -753,6 +758,7 @@ function parse(data, options)
 					buffer_first = false;
 					buffer_implicit_delim = false;
 					buffer_explicit_delim = false;
+					buffer_parse_keyword = true;
 					buffer_skip_whitespace = true;
 					buffer_last_literal = -1;
 					buffer = '';
@@ -764,7 +770,7 @@ function parse(data, options)
 					
 					// discard the parsed comment
 				}
-				else if(isWhitespace && !buffer_skip_whitespace)
+				else if(isWhitespace && !buffer_skip_whitespace && !buffer_is_escaped)
 				{
 					// consume array delimiter with multiple whitespaces
 					let delim = next('inlinearraydelimiter', null);
@@ -819,6 +825,7 @@ function parse(data, options)
 					buffer += next('literal', '');
 					
 					buffer_first = false;
+					buffer_parse_keyword = false;
 					buffer_skip_whitespace = false;
 					buffer_last_literal = buffer.length;
 				}
@@ -831,6 +838,7 @@ function parse(data, options)
 					}
 					else if(chr === '\\')
 					{
+						buffer_parse_keyword = false;
 						buffer_is_escaped = true;
 						chr = ''; // skip backslash-character
 					}
